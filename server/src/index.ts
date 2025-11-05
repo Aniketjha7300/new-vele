@@ -45,7 +45,10 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/vele';
 app.use(helmet());
 app.use(morgan('dev'));
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: [
+    'http://localhost:3000',
+    'https://vele-nu.vercel.app/'  // Add your Vercel URL
+  ],
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' }));
