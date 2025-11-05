@@ -30,9 +30,15 @@ if (process.env.NODE_ENV === 'production' && process.env.JWT_SECRET === 'your-se
 
 const app = express();
 const server = http.createServer(app);
+const allowedOrigins: string[] = [
+  'http://localhost:3000',
+  'https://vele-teal.vercel.app',
+  process.env.CLIENT_URL
+].filter((origin): origin is string => Boolean(origin));
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -42,15 +48,21 @@ const PORT = process.env.PORT || 5000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/vele';
 
 // Middleware
-app.use(helmet());
-app.use(morgan('dev'));
+// CORS must come before other middleware
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    process.env.CLIENT_URL || 'https://vele-teal.vercel.app/'  // Uses CLIENT_URL from environment
-  ],
+  origin: allowedOrigins,
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Type'],
 }));
+
+// Configure Helmet to allow CORS
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginEmbedderPolicy: false,
+}));
+app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
