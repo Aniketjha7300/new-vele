@@ -243,8 +243,9 @@ services:
     name: vele-server
     env: node
     plan: starter
-    buildCommand: cd server && npm install && npm run build
-    startCommand: cd server && npm start
+    rootDir: server
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
@@ -264,6 +265,8 @@ services:
         sync: false
 ```
 
+**Important:** The `rootDir: server` tells Render to use the `server` directory as the working directory, so we don't need `cd server` in the commands.
+
 ### Step 2: Deploy on Render
 
 1. Go to [render.com](https://render.com) and **sign in with GitHub**
@@ -275,15 +278,17 @@ services:
    - **Environment:** `Node`
    - **Region:** Choose closest to your users (e.g., `Oregon (US West)`)
    - **Branch:** `main`
-   - **Root Directory:** Leave empty (we use `cd server` in build command)
-   - **Build Command:** `cd server && npm install --include=dev && npm run build` ⚠️ **Important!**
-   - **Start Command:** `cd server && npm start`
+   - **Root Directory:** `server` ⚠️ **Important!** (This tells Render to use the server directory)
+   - **Build Command:** `npm install --include=dev && npm run build` ⚠️ **Important!**
+   - **Start Command:** `npm start`
    - **Plan:** 
      - **Free** - Service sleeps after 15 min inactivity (good for development)
      - **Starter ($7/month)** - 24/7 uptime (recommended for production)
 6. Click **"Create Web Service"**
 
-**Note:** The `--include=dev` flag is crucial because TypeScript and type definitions are in devDependencies, but they're needed for the build process even in production mode.
+**Note:** 
+- Setting **Root Directory** to `server` means Render will automatically change to that directory before running build/start commands
+- The `--include=dev` flag is crucial because TypeScript and type definitions are in devDependencies, but they're needed for the build process even in production mode
 
 ### Step 3: Set Environment Variables
 
@@ -553,14 +558,34 @@ If you see errors like `Could not find a declaration file for module 'express'`:
 
 1. **Update `render.yaml` build command:**
    ```yaml
-   buildCommand: cd server && npm install --include=dev && npm run build
+   rootDir: server
+   buildCommand: npm install --include=dev && npm run build
    ```
    This ensures devDependencies (including TypeScript types) are installed during build.
 
 2. **Or update Render dashboard:**
    - Go to Render Dashboard → Your Service → Settings
-   - Update Build Command to: `cd server && npm install --include=dev && npm run build`
+   - Set **Root Directory** to: `server`
+   - Update Build Command to: `npm install --include=dev && npm run build`
+   - Update Start Command to: `npm start`
    - Save and redeploy
+
+**Note:** If you set Root Directory in the dashboard, you don't need `cd server` in the commands.
+
+**"No such file or directory" Error:**
+If you see `bash: line 1: cd: server: No such file or directory`:
+
+**Solution:** Render can't find the server directory. This happens when:
+1. Root Directory is not set correctly in Render dashboard
+2. Or the build command includes `cd server` but Root Directory is already set
+
+**Fix:**
+- **Option 1 (Recommended):** Set Root Directory to `server` in Render dashboard, then use:
+  - Build Command: `npm install --include=dev && npm run build`
+  - Start Command: `npm start`
+- **Option 2:** Leave Root Directory empty, then use:
+  - Build Command: `cd server && npm install --include=dev && npm run build`
+  - Start Command: `cd server && npm start`
 
 **Other Build Issues:**
 - Check build logs in Render dashboard
@@ -694,9 +719,9 @@ Use this checklist to ensure nothing is missed:
 
 ### Backend (Render)
 - [ ] Service created
-- [ ] Root directory: Leave empty (or set to root, we use `cd server` in commands)
-- [ ] Build command: `cd server && npm install --include=dev && npm run build` ⚠️ **Critical!**
-- [ ] Start command: `cd server && npm start`
+- [ ] Root directory: Set to `server` ⚠️ **Critical!**
+- [ ] Build command: `npm install --include=dev && npm run build` ⚠️ **Critical!**
+- [ ] Start command: `npm start`
 - [ ] Environment variables set:
   - [ ] `NODE_ENV=production`
   - [ ] `PORT=5000`
