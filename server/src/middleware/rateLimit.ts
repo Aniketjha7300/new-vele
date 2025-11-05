@@ -52,15 +52,17 @@ export const skipLimiter = rateLimit({
 
 // Gamification rate limiter (more lenient for stats/streak)
 // This is applied specifically to gamification routes to allow more frequent stats checks
+// Stats endpoint is read-only and safe, so we allow frequent polling for dashboard updates
 export const gamificationLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute window
-  max: isDevelopment ? 500 : 100, // Very high limit in development, reasonable in production
+  max: isDevelopment ? 500 : 300, // Increased limit for production (stats polling is frequent)
   message: 'Too many gamification requests, please wait a moment.',
   standardHeaders: true,
   legacyHeaders: false,
   validate: {
     trustProxy: false, // Skip trust proxy validation (we trust Render's proxy)
   },
-  // Note: In development, stats endpoint is read-only and safe, so we allow many requests
+  skipSuccessfulRequests: false, // Count all requests, not just failed ones
+  // Note: Stats endpoint is read-only and safe, so we allow frequent requests for real-time dashboard updates
 });
 
