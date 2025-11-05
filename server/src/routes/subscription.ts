@@ -85,12 +85,15 @@ router.post(
       // Create Razorpay order
       const order = await createOrder(tier, req.userId);
 
+      // Type assertion: tier is validated to be 'premium' or 'pro' by express-validator
+      const tierKey = tier as 'premium' | 'pro';
+
       res.json({
         orderId: order.id,
         amount: order.amount,
         currency: order.currency,
         keyId: process.env.RAZORPAY_KEY_ID,
-        plan: SUBSCRIPTION_PLANS[tier],
+        plan: SUBSCRIPTION_PLANS[tierKey],
       });
     } catch (error: any) {
       console.error('Create subscription error:', error);

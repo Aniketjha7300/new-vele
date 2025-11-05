@@ -170,7 +170,7 @@ export default function ProfilePage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-sm text-gray-300 mb-1">Show Online Status</div>
-                    <div className="text-xs text-gray-500">Let others see when you're active</div>
+                    <div className="text-xs text-gray-500">Let others see when you&apos;re active</div>
                   </div>
                   <button
                     onClick={() => setShowOnlineStatus(!showOnlineStatus)}

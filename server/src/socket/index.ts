@@ -38,14 +38,23 @@ export const setupSocketIO = (io: Server) => {
           blockedUserIds, // Pass userIds, not socketIds
         };
 
+        if (!socket.id) {
+          console.error('[Matchmaking] Socket ID is undefined');
+          return;
+        }
+
         matchmakingQueue.addUser(socket.id, data.userId, preferences);
         const newQueueSize = matchmakingQueue.getQueueSize();
         console.log(`[Matchmaking] ✅ Added user ${data.userId} (socket: ${socket.id}) to queue. NEW Queue size: ${newQueueSize}`);
-        console.log(`[Matchmaking] Queue users: ${Array.from(matchmakingQueue.getStats().tierDistribution).map(([tier, count]) => `${tier}=${count}`).join(', ')}`);
+        console.log(`[Matchmaking] Queue users: ${Object.entries(matchmakingQueue.getStats().tierDistribution).map(([tier, count]) => `${tier}=${count}`).join(', ')}`);
         handleMatchmaking(io, socket);
       } catch (error) {
         console.error('Error fetching blocked users:', error);
         // Continue without blocked users if fetch fails
+        if (!socket.id) {
+          console.error('[Matchmaking] Socket ID is undefined');
+          return;
+        }
         matchmakingQueue.addUser(socket.id, data.userId, data.preferences);
         console.log(`[Matchmaking] Added user ${data.userId} to queue (without blocked users). Queue size: ${matchmakingQueue.getQueueSize()}`);
         handleMatchmaking(io, socket);
@@ -166,7 +175,13 @@ export const setupSocketIO = (io: Server) => {
                   blockedUserIds,
                 };
 
-                matchmakingQueue.addUser(socket.id, data.userId, preferences);
+                const socketId = socket.id;
+                if (!socketId || !data.userId) {
+                  console.error('[Skip] Socket ID or user ID is undefined');
+                  return;
+                }
+
+                matchmakingQueue.addUser(socketId, data.userId, preferences);
                 const queueSize = matchmakingQueue.getQueueSize();
                 console.log(`[Skip] ✅ User ${socket.id} re-added to queue. Queue size: ${queueSize}`);
                 handleMatchmaking(io, socket);
@@ -174,7 +189,12 @@ export const setupSocketIO = (io: Server) => {
               } catch (error) {
                 console.error('[Skip] Error fetching blocked users for requeue:', error);
                 // Continue without blocked users if fetch fails
-                matchmakingQueue.addUser(socket.id, data.userId, data.preferences);
+                const socketId = socket.id;
+                if (!socketId || !data.userId) {
+                  console.error('[Skip] Socket ID or user ID is undefined');
+                  return;
+                }
+                matchmakingQueue.addUser(socketId, data.userId, data.preferences);
                 const queueSize = matchmakingQueue.getQueueSize();
                 console.log(`[Skip] ✅ User ${socket.id} re-added to queue (without blocked users). Queue size: ${queueSize}`);
                 handleMatchmaking(io, socket);

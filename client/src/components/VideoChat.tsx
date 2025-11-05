@@ -60,7 +60,7 @@ function VideoChat({ socket, matchSocketId, onStreamCreated, onStreamDestroyed }
         
         stream.getTracks().forEach((track) => {
           try {
-            if (track.readyState !== 'ended' && track.readyState !== 'stopped') {
+            if (track.readyState === 'live') {
               track.stop()
               console.log('[VideoChat] Stopped local track:', track.kind, track.id)
             }
@@ -81,7 +81,7 @@ function VideoChat({ socket, matchSocketId, onStreamCreated, onStreamDestroyed }
         
         stream.getTracks().forEach((track) => {
           try {
-            if (track.readyState !== 'ended' && track.readyState !== 'stopped') {
+            if (track.readyState === 'live') {
               track.stop()
               console.log('[VideoChat] Stopped remote track:', track.kind, track.id)
             }
@@ -94,34 +94,38 @@ function VideoChat({ socket, matchSocketId, onStreamCreated, onStreamDestroyed }
       }
       
       // Clear video elements
-      if (localVideoRef.current?.srcObject) {
-        const stream = localVideoRef.current.srcObject as MediaStream
+      // Copy refs to variables to avoid stale closures
+      const currentLocalVideoForCleanup = localVideoRef.current
+      const currentRemoteVideoForCleanup = remoteVideoRef.current
+      
+      if (currentLocalVideoForCleanup?.srcObject) {
+        const stream = currentLocalVideoForCleanup.srcObject as MediaStream
         stream.getTracks().forEach((track) => {
           try {
-            if (track.readyState !== 'ended' && track.readyState !== 'stopped') {
+            if (track.readyState === 'live') {
               track.stop()
             }
           } catch (e) {
             // Ignore errors
           }
         })
-        localVideoRef.current.srcObject = null
-        localVideoRef.current.load()
+        currentLocalVideoForCleanup.srcObject = null
+        currentLocalVideoForCleanup.load()
       }
       
-      if (remoteVideoRef.current?.srcObject) {
-        const stream = remoteVideoRef.current.srcObject as MediaStream
+      if (currentRemoteVideoForCleanup?.srcObject) {
+        const stream = currentRemoteVideoForCleanup.srcObject as MediaStream
         stream.getTracks().forEach((track) => {
           try {
-            if (track.readyState !== 'ended' && track.readyState !== 'stopped') {
+            if (track.readyState === 'live') {
               track.stop()
             }
           } catch (e) {
             // Ignore errors
           }
         })
-        remoteVideoRef.current.srcObject = null
-        remoteVideoRef.current.load()
+        currentRemoteVideoForCleanup.srcObject = null
+        currentRemoteVideoForCleanup.load()
       }
       
       // Destroy peer connection if it exists
@@ -136,6 +140,10 @@ function VideoChat({ socket, matchSocketId, onStreamCreated, onStreamDestroyed }
       
       return
     }
+
+    // Copy refs to variables at the start of the effect to avoid stale closures in cleanup
+    const currentLocalVideoRef = localVideoRef.current
+    const currentRemoteVideoRef = remoteVideoRef.current
 
     // Prevent multiple simultaneous initializations
     if (isInitializingRef.current) {
@@ -207,7 +215,7 @@ function VideoChat({ socket, matchSocketId, onStreamCreated, onStreamDestroyed }
         }
 
         // Determine initiator (first socket ID becomes initiator)
-        const initiator = socket.id < matchSocketId
+        const initiator = socket.id ? socket.id < matchSocketId : false
         setIsInitiator(initiator)
 
         // Create peer connection
@@ -527,7 +535,7 @@ function VideoChat({ socket, matchSocketId, onStreamCreated, onStreamDestroyed }
         
         currentLocalStream.getTracks().forEach((track) => {
           try {
-            if (track.readyState !== 'ended' && track.readyState !== 'stopped') {
+            if (track.readyState === 'live') {
               track.stop()
               console.log('[VideoChat] Cleanup: Stopped local track:', track.kind, track.id)
             }
@@ -548,7 +556,7 @@ function VideoChat({ socket, matchSocketId, onStreamCreated, onStreamDestroyed }
         
         currentRemoteStream.getTracks().forEach((track) => {
           try {
-            if (track.readyState !== 'ended' && track.readyState !== 'stopped') {
+            if (track.readyState === 'live') {
               track.stop()
               console.log('[VideoChat] Cleanup: Stopped remote track:', track.kind, track.id)
             }
@@ -562,42 +570,43 @@ function VideoChat({ socket, matchSocketId, onStreamCreated, onStreamDestroyed }
       
       // Also stop any tracks that might be on video elements
       // Do this SYNCHRONOUSLY to ensure tracks are stopped immediately
-      if (localVideoRef.current) {
+      // Use refs copied at the start of the effect to avoid stale closures
+      if (currentLocalVideoRef) {
         try {
-          if (localVideoRef.current.srcObject) {
-            const mediaStream = localVideoRef.current.srcObject as MediaStream
+          if (currentLocalVideoRef.srcObject) {
+            const mediaStream = currentLocalVideoRef.srcObject as MediaStream
             mediaStream.getTracks().forEach((track) => {
               try {
-                if (track.readyState !== 'ended' && track.readyState !== 'stopped') {
+                if (track.readyState === 'live') {
                   track.stop()
                 }
               } catch (e) {
                 // Ignore errors - track might already be stopped
               }
             })
-            localVideoRef.current.srcObject = null
-            localVideoRef.current.load() // Reset video element
+            currentLocalVideoRef.srcObject = null
+            currentLocalVideoRef.load() // Reset video element
           }
         } catch (e) {
           // Ignore errors
         }
       }
 
-      if (remoteVideoRef.current) {
+      if (currentRemoteVideoRef) {
         try {
-          if (remoteVideoRef.current.srcObject) {
-            const mediaStream = remoteVideoRef.current.srcObject as MediaStream
+          if (currentRemoteVideoRef.srcObject) {
+            const mediaStream = currentRemoteVideoRef.srcObject as MediaStream
             mediaStream.getTracks().forEach((track) => {
               try {
-                if (track.readyState !== 'ended' && track.readyState !== 'stopped') {
+                if (track.readyState === 'live') {
                   track.stop()
                 }
               } catch (e) {
                 // Ignore errors
               }
             })
-            remoteVideoRef.current.srcObject = null
-            remoteVideoRef.current.load() // Reset video element
+            currentRemoteVideoRef.srcObject = null
+            currentRemoteVideoRef.load() // Reset video element
           }
         } catch (e) {
           // Ignore errors
@@ -624,7 +633,7 @@ function VideoChat({ socket, matchSocketId, onStreamCreated, onStreamDestroyed }
         setConnectionError(null)
       }, 0)
     }
-  }, [matchSocketId, socket])
+  }, [matchSocketId, socket, onStreamCreated, onStreamDestroyed])
 
   const toggleVideo = () => {
     if (localStream) {
@@ -676,7 +685,6 @@ function VideoChat({ socket, matchSocketId, onStreamCreated, onStreamDestroyed }
               autoPlay
               playsInline
               muted={false}
-              volume={1.0}
               className="w-full h-full object-cover"
               onLoadedMetadata={() => {
                 console.log('[VideoChat] Remote video metadata loaded')

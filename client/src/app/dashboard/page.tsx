@@ -128,7 +128,7 @@ export default function DashboardPage() {
     }, 300000)
 
     return () => clearInterval(refreshInterval)
-  }, [_hasHydrated, user?.id, router, setAuth, loadData])
+  }, [_hasHydrated, user, router, setAuth, loadData])
 
   const handleRefresh = () => {
     loadData(false, 0, false)

@@ -148,7 +148,7 @@ export default function ReportBlockModal({ isOpen, onClose, socketId, userId }: 
           {activeTab === 'block' && (
             <div className="space-y-4">
               <p className="text-gray-300">
-                Are you sure you want to block this user? You won't be matched with them again.
+                Are you sure you want to block this user? You won&apos;t be matched with them again.
               </p>
 
               <button

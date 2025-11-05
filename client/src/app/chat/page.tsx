@@ -36,6 +36,27 @@ export default function ChatPage() {
   const searchTimerRef = useRef<NodeJS.Timeout>()
   const activeStreamsRef = useRef<MediaStream[]>([]) // Track all active streams for immediate stopping
 
+  // Define loadSkipInfo before useEffect that uses it
+  const loadSkipInfo = useCallback(async (retryCount = 0) => {
+    try {
+      const info = await chatAPI.getSkipCount()
+      setSkipInfo(info)
+    } catch (error: any) {
+      // Handle rate limiting with exponential backoff
+      if (error.response?.status === 429 && retryCount < 2) {
+        const delay = Math.pow(2, retryCount) * 1000 // 1s, 2s
+        setTimeout(() => {
+          loadSkipInfo(retryCount + 1)
+        }, delay)
+        return
+      }
+      // Only log non-rate-limit errors
+      if (error.response?.status !== 429) {
+        console.error('Failed to load skip info:', error)
+      }
+    }
+  }, [])
+
   // Wait for hydration before checking auth
   useEffect(() => {
     if (!_hasHydrated) {
@@ -147,7 +168,7 @@ export default function ChatPage() {
 
     let errorCount = 0
     
-    newSocket.on('connect_error', (error) => {
+    newSocket.on('connect_error', (error: any) => {
       // Suppress expected errors during development/Fast Refresh
       const errorMessage = error.message || ''
       const errorType = error.type || ''
@@ -179,9 +200,8 @@ export default function ChatPage() {
       if (isMounted) {
         console.error('❌ Unexpected connection error:', error)
         // Only show toast for persistent errors (not first attempt)
-        if (newSocket.io.engine?.transport?.readyState !== 'opening') {
-          toast.error('Failed to connect to server. Retrying...')
-        }
+        // Note: readyState is a protected property, so we'll show toast for all persistent errors
+        toast.error('Failed to connect to server. Retrying...')
       }
     })
 
@@ -292,11 +312,12 @@ export default function ChatPage() {
       if (!isMounted) return
       
       // Remove the message that was blocked (optimistic update failed)
+      const currentSocketId = newSocket.id
       setMessages((prev) => {
         // Remove the most recent message from this sender (the one that was blocked)
         const filtered = prev.filter((msg, idx, arr) => {
           // Keep all messages except the last one from this sender if it matches
-          if (idx === arr.length - 1 && msg.senderId === socket?.id) {
+          if (idx === arr.length - 1 && msg.senderId === currentSocketId) {
             return false // Remove the blocked message
           }
           return true
@@ -428,27 +449,7 @@ export default function ChatPage() {
         newSocket.disconnect()
       }
     }
-  }, [_hasHydrated, user, router, setAuth])
-
-  const loadSkipInfo = async (retryCount = 0) => {
-    try {
-      const info = await chatAPI.getSkipCount()
-      setSkipInfo(info)
-    } catch (error: any) {
-      // Handle rate limiting with exponential backoff
-      if (error.response?.status === 429 && retryCount < 2) {
-        const delay = Math.pow(2, retryCount) * 1000 // 1s, 2s
-        setTimeout(() => {
-          loadSkipInfo(retryCount + 1)
-        }, delay)
-        return
-      }
-      // Only log non-rate-limit errors
-      if (error.response?.status !== 429) {
-        console.error('Failed to load skip info:', error)
-      }
-    }
-  }
+  }, [_hasHydrated, user, router, setAuth, loadSkipInfo])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -479,6 +480,11 @@ export default function ChatPage() {
     // Add message to local state immediately (optimistic update)
     // This ensures the message appears instantly for the sender
     const currentSocketId = socket.id
+    if (!currentSocketId) {
+      console.warn('[Chat] Cannot send message - socket.id is undefined')
+      return
+    }
+    
     const newMessage = {
       message,
       timestamp: Date.now(),
@@ -604,7 +610,7 @@ export default function ChatPage() {
     activeStreamsRef.current.forEach((stream) => {
       stream.getTracks().forEach((track) => {
         try {
-          if (track.readyState !== 'ended' && track.readyState !== 'stopped') {
+          if (track.readyState === 'live') {
             track.stop()
             tracksStopped++
             console.log(`[Chat] Stopped ${track.kind} track from activeStreamsRef`)
@@ -627,7 +633,7 @@ export default function ChatPage() {
         const stream = video.srcObject as MediaStream
         stream.getTracks().forEach((track) => {
           try {
-            if (track.readyState !== 'ended' && track.readyState !== 'stopped') {
+            if (track.readyState === 'live') {
               track.stop()
               tracksStopped++
               console.log(`[Chat] Stopped ${track.kind} track from video element`)
@@ -650,7 +656,7 @@ export default function ChatPage() {
         const stream = mediaElement.srcObject as MediaStream
         stream.getTracks().forEach((track) => {
           try {
-            if (track.readyState !== 'ended' && track.readyState !== 'stopped') {
+            if (track.readyState === 'live') {
               track.stop()
               tracksStopped++
               console.log(`[Chat] Stopped ${track.kind} track from media element`)
@@ -701,6 +707,19 @@ export default function ChatPage() {
     
     console.log('[Chat] Exit chat complete')
   }
+
+  // Memoize stream callbacks to prevent unnecessary re-renders
+  const handleStreamCreated = useCallback((stream: MediaStream) => {
+    if (!activeStreamsRef.current.includes(stream)) {
+      activeStreamsRef.current.push(stream)
+      console.log('[Chat] Tracked new stream:', stream.id, 'Total streams:', activeStreamsRef.current.length)
+    }
+  }, [])
+
+  const handleStreamDestroyed = useCallback((stream: MediaStream) => {
+    activeStreamsRef.current = activeStreamsRef.current.filter(s => s !== stream)
+    console.log('[Chat] Removed stream from tracking:', stream.id, 'Remaining streams:', activeStreamsRef.current.length)
+  }, [])
 
   // Wait for hydration before rendering
   if (!_hasHydrated) {
@@ -789,7 +808,7 @@ export default function ChatPage() {
               </motion.div>
               <h3 className="text-3xl font-bold text-gradient mb-3">Talk to Strangers</h3>
               <p className="text-gray-400 text-sm mb-8">
-                Click "START" to begin chatting with random people
+                Click &quot;START&quot; to begin chatting with random people
               </p>
               {/* Large START Button (Omegle Style) */}
               <motion.button
@@ -895,18 +914,8 @@ export default function ChatPage() {
                   <VideoChat 
                     socket={socket!} 
                     matchSocketId={matchSocketId}
-                    onStreamCreated={(stream) => {
-                      // Track all active streams for immediate stopping
-                      if (!activeStreamsRef.current.includes(stream)) {
-                        activeStreamsRef.current.push(stream)
-                        console.log('[Chat] Tracked new stream:', stream.id, 'Total streams:', activeStreamsRef.current.length)
-                      }
-                    }}
-                    onStreamDestroyed={(stream) => {
-                      // Remove stream from tracking
-                      activeStreamsRef.current = activeStreamsRef.current.filter(s => s !== stream)
-                      console.log('[Chat] Removed stream from tracking:', stream.id, 'Remaining streams:', activeStreamsRef.current.length)
-                    }}
+                    onStreamCreated={handleStreamCreated}
+                    onStreamDestroyed={handleStreamDestroyed}
                   />
                 )}
               </div>

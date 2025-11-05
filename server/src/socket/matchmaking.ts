@@ -173,7 +173,7 @@ class MatchmakingQueue {
 
     // Region filter
     const hasRegionFilter = !!(user.preferences?.region && user.preferences.region !== 'any');
-    if (hasRegionFilter) {
+    if (hasRegionFilter && user.preferences) {
       const matchRegion = candidate.preferences?.region;
       if (!matchRegion || matchRegion === 'any' || user.preferences.region !== matchRegion) {
         console.log(`[Compatibility] Region mismatch: ${user.preferences.region} vs ${matchRegion}`);
@@ -183,7 +183,7 @@ class MatchmakingQueue {
 
     // Gender filter
     const hasGenderFilter = !!(user.preferences?.gender && user.preferences.gender !== 'any');
-    if (hasGenderFilter) {
+    if (hasGenderFilter && user.preferences) {
       const matchGender = candidate.preferences?.gender;
       if (!matchGender || matchGender === 'any' || user.preferences.gender !== matchGender) {
         console.log(`[Compatibility] Gender mismatch: ${user.preferences.gender} vs ${matchGender}`);
