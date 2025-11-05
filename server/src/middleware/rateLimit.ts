@@ -10,6 +10,9 @@ export const apiLimiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  validate: {
+    trustProxy: false, // Skip trust proxy validation (we trust Render's proxy)
+  },
   skip: (req) => {
     // Skip rate limiting for health checks and gamification routes (they have their own limiter)
     return req.path === '/health' || req.path.startsWith('/gamification');
@@ -22,6 +25,9 @@ export const authLimiter = rateLimit({
   max: 5, // Limit each IP to 5 requests per windowMs
   message: 'Too many authentication attempts, please try again later.',
   skipSuccessfulRequests: true,
+  validate: {
+    trustProxy: false, // Skip trust proxy validation (we trust Render's proxy)
+  },
 });
 
 // Chat rate limiter
@@ -29,6 +35,9 @@ export const chatLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 30, // 30 messages per minute
   message: 'Too many messages, please slow down.',
+  validate: {
+    trustProxy: false, // Skip trust proxy validation (we trust Render's proxy)
+  },
 });
 
 // Skip rate limiter
@@ -36,6 +45,9 @@ export const skipLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 10, // 10 skips per minute (prevents abuse)
   message: 'Too many skips, please wait a moment.',
+  validate: {
+    trustProxy: false, // Skip trust proxy validation (we trust Render's proxy)
+  },
 });
 
 // Gamification rate limiter (more lenient for stats/streak)
@@ -46,6 +58,9 @@ export const gamificationLimiter = rateLimit({
   message: 'Too many gamification requests, please wait a moment.',
   standardHeaders: true,
   legacyHeaders: false,
+  validate: {
+    trustProxy: false, // Skip trust proxy validation (we trust Render's proxy)
+  },
   // Note: In development, stats endpoint is read-only and safe, so we allow many requests
 });
 
