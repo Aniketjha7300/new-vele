@@ -47,7 +47,7 @@ app.use(morgan('dev'));
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    'https://vele-nu.vercel.app/'  // Add your Vercel URL
+    process.env.CLIENT_URL || 'https://vele-teal.vercel.app/'  // Uses CLIENT_URL from environment
   ],
   credentials: true,
 }));
