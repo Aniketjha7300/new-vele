@@ -29,6 +29,7 @@ export default function DashboardPage() {
   const loadingRef = useRef(false) // Prevent concurrent loads
   const mountedRef = useRef(true)
   const loadDataRef = useRef<((showLoading?: boolean, retryCount?: number, updateStreak?: boolean) => Promise<void>) | null>(null)
+  const initialLoadDoneRef = useRef(false) // Track if initial load has been done
 
   // Load data function with retry logic
   const loadData = useCallback(async (showLoading = true, retryCount = 0, updateStreak = false) => {
@@ -106,7 +107,7 @@ export default function DashboardPage() {
     loadDataRef.current = loadData
   }, [loadData])
 
-  // Handle user authentication and initial load
+  // Handle user authentication - separate from data loading
   useEffect(() => {
     if (!_hasHydrated) {
       return
@@ -140,17 +141,26 @@ export default function DashboardPage() {
         }
       }
       restoreUser()
-      return
     }
-
-    if (!user) {
-      router.push('/')
-      return
-    }
-
-    // Load data only once on mount
-    loadData(true, 0, true)
   }, [_hasHydrated, user, router, setAuth])
+
+  // Load data only once when user becomes available
+  // Use a separate effect that only runs when user.id changes (not the whole user object)
+  useEffect(() => {
+    if (!_hasHydrated || !user?.id || initialLoadDoneRef.current) {
+      return
+    }
+
+    // Set flag immediately to prevent multiple calls
+    initialLoadDoneRef.current = true
+    
+    // Load data - use setTimeout to ensure loadData is available
+    setTimeout(() => {
+      if (loadDataRef.current && mountedRef.current) {
+        loadDataRef.current(true, 0, true)
+      }
+    }, 0)
+  }, [_hasHydrated, user?.id]) // Only depend on user.id to avoid re-runs when user object changes
 
   // Set up refresh interval separately to avoid re-creating on every render
   useEffect(() => {
