@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const lastStreakUpdateRef = useRef<string | null>(null)
   const loadingRef = useRef(false) // Prevent concurrent loads
   const mountedRef = useRef(true)
+  const loadDataRef = useRef<((showLoading?: boolean, retryCount?: number, updateStreak?: boolean) => Promise<void>) | null>(null)
 
   // Load data function with retry logic
   const loadData = useCallback(async (showLoading = true, retryCount = 0, updateStreak = false) => {
@@ -100,6 +101,11 @@ export default function DashboardPage() {
     }
   }, [updateUser])
 
+  // Store loadData in ref for stable reference
+  useEffect(() => {
+    loadDataRef.current = loadData
+  }, [loadData])
+
   // Handle user authentication and initial load
   useEffect(() => {
     if (!_hasHydrated) {
@@ -154,15 +160,15 @@ export default function DashboardPage() {
 
     // Refresh every 5 minutes (300000ms)
     const refreshInterval = setInterval(() => {
-      if (mountedRef.current && !loadingRef.current) {
-        loadData(false, 0, false)
+      if (mountedRef.current && !loadingRef.current && loadDataRef.current) {
+        loadDataRef.current(false, 0, false)
       }
     }, 300000) // 5 minutes
 
     return () => {
       clearInterval(refreshInterval)
     }
-  }, [user, _hasHydrated, loadData])
+  }, [user, _hasHydrated]) // Removed loadData from dependencies
 
   // Cleanup on unmount
   useEffect(() => {
