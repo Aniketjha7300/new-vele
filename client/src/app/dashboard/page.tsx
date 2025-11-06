@@ -26,9 +26,19 @@ export default function DashboardPage() {
   // Track if streak has been updated today to avoid multiple calls
   const streakUpdatedRef = useRef(false)
   const lastStreakUpdateRef = useRef<string | null>(null)
+  const loadingRef = useRef(false) // Prevent concurrent loads
+  const mountedRef = useRef(true)
 
   // Load data function with retry logic
   const loadData = useCallback(async (showLoading = true, retryCount = 0, updateStreak = false) => {
+    // Prevent concurrent loads
+    if (loadingRef.current && !showLoading) {
+      return
+    }
+    
+    if (!mountedRef.current) return
+    
+    loadingRef.current = true
     if (showLoading) setLoading(true)
     else setRefreshing(true)
     
@@ -46,6 +56,8 @@ export default function DashboardPage() {
       
       const [statsData] = await Promise.all(promises)
       
+      if (!mountedRef.current) return
+      
       setStats(statsData)
       if (statsData) {
         updateUser({
@@ -56,11 +68,16 @@ export default function DashboardPage() {
         })
       }
     } catch (err: any) {
+      if (!mountedRef.current) return
+      
       if (err.response?.status === 429 && retryCount < 2) {
         const delay = Math.pow(2, retryCount) * 1000
         console.warn(`Rate limited, retrying in ${delay}ms...`)
+        loadingRef.current = false
         setTimeout(() => {
-          loadData(showLoading, retryCount + 1, false)
+          if (mountedRef.current) {
+            loadData(showLoading, retryCount + 1, false)
+          }
         }, delay)
         return
       }
@@ -75,11 +92,15 @@ export default function DashboardPage() {
         toast.error(errorMsg)
       }
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      loadingRef.current = false
+      if (mountedRef.current) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
   }, [updateUser])
 
+  // Handle user authentication and initial load
   useEffect(() => {
     if (!_hasHydrated) {
       return
@@ -121,14 +142,35 @@ export default function DashboardPage() {
       return
     }
 
+    // Load data only once on mount
     loadData(true, 0, true)
-    
-    const refreshInterval = setInterval(() => {
-      loadData(false, 0, false)
-    }, 300000)
+  }, [_hasHydrated, user, router, setAuth])
 
-    return () => clearInterval(refreshInterval)
-  }, [_hasHydrated, user, router, setAuth, loadData])
+  // Set up refresh interval separately to avoid re-creating on every render
+  useEffect(() => {
+    if (!user || !_hasHydrated) {
+      return
+    }
+
+    // Refresh every 5 minutes (300000ms)
+    const refreshInterval = setInterval(() => {
+      if (mountedRef.current && !loadingRef.current) {
+        loadData(false, 0, false)
+      }
+    }, 300000) // 5 minutes
+
+    return () => {
+      clearInterval(refreshInterval)
+    }
+  }, [user, _hasHydrated, loadData])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const handleRefresh = () => {
     loadData(false, 0, false)
